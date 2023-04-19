@@ -1,7 +1,7 @@
 {
-    "id": "multihitlib",
-    "version": "yes",
-    "engineVersion": "yeah",
+    "id": "ExpandedAttackLib",
+    "version": "0.1",
+    "engineVersion": "0.8.1-dev",
     "config": {
         //////////////////////////////////////////////////////////////////////////////////////
         /// COLOR TYPE

@@ -1,7 +1,7 @@
 local Lib = {}
 
 function Lib:init()
-    print("glhf")
+    print(self.info.id .. " has been engaged.")
 
     -- Item Hooks --
 
@@ -11,7 +11,7 @@ function Lib:init()
 
         self.weapon_type = "bolt"
     
-        self.bolt_count = 1 --might as well have the vanilla stuff be the default fn
+        self.bolt_count = 1
         self.bolt_speed = 8
         self.bolt_leniency = 8
         self.bolt_offset = 8

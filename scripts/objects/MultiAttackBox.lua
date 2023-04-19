@@ -1,6 +1,6 @@
 local MultiAttackBox, super = Class(Object)
 
-MultiAttackBox.CRITICAL = 22
+MultiAttackBox.CRITICAL = 25
 
 function MultiAttackBox:init(battler, offset, x, y)
     super:init(self, x, y)
@@ -19,13 +19,13 @@ function MultiAttackBox:init(battler, offset, x, y)
     self:addChild(self.press_sprite)
 
     self.bolt_target = 80 + 2
-    self.bolt_start_x = self.bolt_target + ((self.offset * self.weapon:getBoltSpeed()))
+    self.bolt_start_x = self.bolt_target + (self.offset * self.weapon:getBoltSpeed())
 
     self.bolts = {}
     self.score = 0
 
     for i = 1, self.weapon:getBoltCount() do
-        local bolt = AttackBar(self.bolt_start_x + ((i * 80) - 160), 0, 6, 38)
+        local bolt = AttackBar(self.bolt_start_x + ((i * 80) - 80), 0, 6, 38)
         bolt.layer = 1
         self.bolts[i] = bolt
         self:addChild(bolt)
@@ -120,7 +120,7 @@ function MultiAttackBox:evaluateScore()
         elseif perfect_score - self.score <= 120 then
             return 110
         else
-            return math.min(self.score, 60)
+            return math.min(self.score / 2, 60)
         end
     end
 end
