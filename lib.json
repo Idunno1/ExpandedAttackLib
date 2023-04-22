@@ -1,22 +1,5 @@
 {
     "id": "ExpandedAttackLib",
     "version": "0.1",
-    "engineVersion": "0.8.1-dev",
-    "config": {
-        //////////////////////////////////////////////////////////////////////////////////////
-        /// COLOR TYPE
-        /// Determines the color of multihit bolts when they're bursting
-        /// Format: String
-        /// ---------------------------------------------------
-        /// undertale: perfect hits flash orange and blue,
-        ///            normal hits are the character's damage color, bad hits are red
-        ///
-        /// deltarune: perfect hits are yellow, normal hits are white, bad hits are the
-        ///            character's damage color
-        ///
-        /// custom:    define your own colors! (todo: make this work)
-        ///
-        "colortype": "undertale",
-        //////////////////////////////////////////////////////////////////////////////////////
-    }
+    "engineVersion": "0.8.1-dev"
 }

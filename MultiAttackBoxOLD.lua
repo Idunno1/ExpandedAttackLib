@@ -5,11 +5,11 @@ MultiAttackBox.CRITICAL = 25
 function MultiAttackBox:init(battler, offset, x, y)
     super:init(self, x, y)
 
-    self.color_type = Kristal.getLibConfig("multihitlib", "colortype")
+    self.color_type = Kristal.getLibConfig("ExpandedAttackLib", "colortype")
 
     self.battler = battler
-    self.offset = offset
     self.weapon = battler.chara:getWeapon()
+    self.offset = offset + self.weapon:getBoltOffset()
 
     self.head_sprite = Sprite(battler.chara:getHeadIcons().."/head", 21, 19)
     self.head_sprite:setOrigin(0.5, 0.5)
@@ -19,12 +19,12 @@ function MultiAttackBox:init(battler, offset, x, y)
     self:addChild(self.press_sprite)
 
     self.bolt_target = 80 + 2
-    self.bolt_start_x = self.bolt_target + (self.offset * self.weapon:getBoltSpeed())
+    self.bolt_start_x = self.bolt_target + (self.offset * (self.battler:getBoltSpeed() * 8))
 
     self.bolts = {}
     self.score = 0
 
-    for i = 1, self.weapon:getBoltCount() do
+    for i = 1, (self.battler:getBoltCount() - 1) or 1 do
         local bolt = AttackBar(self.bolt_start_x + ((i * 80) - 80), 0, 6, 38)
         bolt.layer = 1
         self.bolts[i] = bolt
@@ -111,7 +111,7 @@ function MultiAttackBox:evaluateScore()
     end
 
     if self.attacked then
-        local perfect_score = 105 * self.weapon:getBoltCount()
+        local perfect_score = 105 * self.battler:getBoltCount()
 
         if perfect_score - self.score <= MultiAttackBox.CRITICAL then
             return 150
@@ -132,8 +132,8 @@ function MultiAttackBox:update()
     end
 
     if not self.attacked then
-        for index, bolt in ipairs(self.bolts) do
-            bolt:move(-self.weapon:getBoltSpeed() * DTMULT, 0)
+        for _,bolt in ipairs(self.bolts) do
+            bolt:move((-self.battler:getBoltSpeed() * 8) * DTMULT, 0)
         end
     end
 
