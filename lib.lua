@@ -18,21 +18,23 @@ function Lib:init()
 
         orig(self)
 
-        --self.weapon_type = "normal"
-    
         self.bolt_hit_type = "all"
 
-        self.bolt_count = 0
-        self.bolt_speed = 0
-        self.bolt_accel = 0
+        self.bolt_count = nil
+        self.bolt_speed = nil
         self.bolt_offset = 0
+
+        self.multibolt_variance = {0, 0}
+
+        self.bolt_accel = 0
+
+        self.bolt_target = 0
+        self.bolt_miss_zone = nil
+
         self.critical_threshold = 30 -- here for ease of use and for the debug display
+        self.max_points = nil
     
     end)
-
---[[     Utils.hook(Item, "getWeaponType", function(orig, self)
-        return self.weapon_type
-    end) ]]
 
     Utils.hook(Item, "getHitType", function(orig, self)
         return self.bolt_hit_type
@@ -46,133 +48,130 @@ function Lib:init()
         return self.bolt_speed
     end)
 
+    Utils.hook(Item, "getBoltOffset", function(orig, self)
+        return self.bolt_offset
+    end)
+
+    Utils.hook(Item, "getMultiboltVariance", function(orig, self)
+        return self.multibolt_variance
+    end)
+
     Utils.hook(Item, "getBoltAcceleration", function(orig, self)
         return self.bolt_accel
     end)
 
-    Utils.hook(Item, "getBoltOffset", function(orig, self)
-        return self.bolt_offset
+    Utils.hook(Item, "getBoltTarget", function(orig, self)
+        return self.bolt_target
+    end)
+
+    Utils.hook(Item, "getBoltMissZone", function(orig, self)
+
+        if not self.bolt_miss_zone then
+            self.bolt_miss_zone = -5
+        end
+
+        return self.bolt_miss_zone
     end)
  
     Utils.hook(Item, "getCriticalThreshold", function(orig, self)
         return self.critical_threshold
     end)
 
-    ----- EVALUATEHIT
+    Utils.hook(Item, "getMaxPoints", function(orig, self)
 
-    Utils.hook(Item, "evaluateHit", function(orig, self, battler, value)
-
-        -- if the battler has more than one bolt...
-        if battler:getBoltCount() > 1 then
-
-            -- if the bolt went past the crit box but isn't too far from it...
-            if value < -1 then
-
-                -- return 50 points to the hit function for scoring
-                return 50
-
-            -- if the bolt went past the crit box just a bit...
-            elseif value < 0 then
-
-                -- return 70 points
-                return 70
-
-            -- if the bolt was in the crit box...
-            elseif value < 1 then
-
-                -- return 105, the max score
-                return 105
-
-            elseif value < 2 then
-                return 85
-
-            elseif value < 3 then
-                return 70
-
-            elseif value < 6 then
-                return 40
-
-            elseif value < 8 then
-                return 25
-
-            elseif value < 11 then
-                return 20
-
-            -- if the bolt wasn't in any other ranges...
-            else
-
-                -- return 10, the minimum score
-                return 10
-
-            end
-
-        -- if the battler has less than 2 bolts...
-        else
-
-            -- calculate it the same way deltarune does
-            if math.abs(value) == 0 then
-                return 150 -- perfect
-            elseif math.abs(value) == 1 then
-                return 120
-            elseif math.abs(value) == 2 then
-                return 110
-            elseif math.abs(value) >= 3 then
-                return 100 - (math.abs(value) * 2)
-            end
-
+        if not self.max_points then
+            self.max_points = self.critical_threshold * 3.5
         end
+
+        return self.max_points
+        
     end)
 
-    ----- EVALUATESCORE
+    ----- CALLBACKS
 
-    Utils.hook(Item, "evaluateScore", function(orig, self, battler, score)
+    -- bolts is a table
+    Utils.hook(Item, "onHit", function(orig, self, battler, score, bolts, close)
 
-        -- if the battler has more than one bolt...
-        if battler:getBoltCount() > 1 then
+        local attackbox
+        for _,box in ipairs(Game.battle.battle_ui.attack_boxes) do
+            if box.battler == battler then
+                attackbox = box
+                break
+            end
+        end
 
-            -- set the threshold for a crit to be 30
-            local crit = 30
-
-            -- set the perfect score to be 105 (the maximum points a hit could give) / a battler's bolt count
-            local perfect_score = 105 * battler:getBoltCount()
+        local bolt = bolts[1]
     
-            -- if the difference between the perfect score and the actual score is less than or equal to the crit threshold...
-            if perfect_score - score <= crit then
+        attackbox.score = attackbox.score + self:evaluateHit(battler, close)
 
-                -- 150 points are awarded, which is the minimum for a crit
-                return 150
+        bolt:resetPhysics()
 
-            -- if the difference between the perfect score and the actual score is less than or equal the difference between 75 and the threshold...
-            elseif perfect_score - score <= 75 - crit then
+        self:onBoltBurst(battler, score, bolts, close)
 
-                -- 120 points are awarded
-                return 120
+        table.remove(bolts, 1)
 
-            -- if the difference between the perfect score and the actual score is less than or equal the difference between 150 and the threshold...
-            elseif perfect_score - score <= 150 - crit then
+        return self:checkAttackEnd(battler, attackbox.score, bolts, close)
 
-                -- 110 points are awarded
-                return 110
-
-            -- otherwise...
-            else
-
-                -- points are awarded relative to the score of the attack itself, divided by 2.5, rounded up, then summed with 20.
-                return 20 + Utils.round(score / 2.5)
-            end
-
-        -- if the battler has less than 2 bolts...
-        else
-
-            -- the score from evaluateHit is returned to the damage function, as-is
-            return score
-
-        end
     end)
 
-    ----- BOLTBURST
+    Utils.hook(Item, "onWeaponMiss", function(orig, self, battler, score, bolts, close)
 
-    Utils.hook(Item, "boltBurst", function(orig, self, battler, bolt, close)
+        local attackbox
+        for _,box in ipairs(Game.battle.battle_ui.attack_boxes) do
+            if box.battler == battler then
+                attackbox = box
+                break
+            end
+        end
+    
+        local bolt = bolts[1]
+
+        bolt:resetPhysics()
+
+        bolt:fadeOutSpeedAndRemove(0.45)
+
+        table.remove(bolts, 1)
+
+        return self:checkAttackEnd(battler, attackbox.score, bolts, close)
+    
+    end)
+
+    Utils.hook(Item, "onArmorMiss", function(orig, self, battler, score, bolts, close)
+
+        local attackbox
+        for _,box in ipairs(Game.battle.battle_ui.attack_boxes) do
+            if box.battler == battler then
+                attackbox = box
+                break
+            end
+        end
+
+        return self:checkAttackEnd(battler, attackbox.score, bolts, close)
+    end)
+
+    Utils.hook(Item, "checkAttackEnd", function(orig, self, battler, score, bolts, close)
+    
+        local attackbox
+        for _,box in ipairs(Game.battle.battle_ui.attack_boxes) do
+            if box.battler == battler then
+                attackbox = box
+                break
+            end
+        end
+
+        if #bolts == 0 then
+            attackbox.attacked = true
+        end
+
+        if attackbox.attacked then
+            return self:evaluateScore(battler, score)
+        end
+    
+    end)
+
+    Utils.hook(Item, "onBoltBurst", function(orig, self, battler, score, bolts, close)
+
+        local bolt = bolts[1]
 
         -- if the battler has more than one bolt...
         if battler:getBoltCount() > 1 then
@@ -231,11 +230,11 @@ function Lib:init()
 
         end
 
+        -- make sure the bolt is on layer 4 so bolts don't overlap hopefully
+        bolt.layer = 4
+
         -- play the bolt's burst animation
         bolt:burst()
-
-        -- make sure the bolt is on layer 1
-        bolt.layer = 1
 
         -- make sure the bolt doesn't move
         bolt:setPosition(bolt:getRelativePos(0, 0, bolt.parent))
@@ -243,6 +242,128 @@ function Lib:init()
         -- set the bolt's parent
         bolt:setParent(bolt.parent)
         
+    end)
+
+    ----- EVALUATEHIT
+
+    Utils.hook(Item, "evaluateHit", function(orig, self, battler, value)
+
+        -- if the battler has more than one bolt...
+        if battler:getBoltCount() > 1 then
+
+            -- if the bolt went past the crit box but isn't too far from it...
+            if value < -1 then
+
+                -- return 50 points to the hit function for scoring
+                --return 50
+                return math.floor(self:getMaxPoints() / 1.4)
+
+            -- if the bolt went past the crit box just a bit...
+            elseif value < 0 then
+
+                -- return 70 points
+                --return 70
+                return math.floor(self:getMaxPoints() / 1.3)
+
+            -- if the bolt was in the crit box...
+            elseif value < 1 then
+
+                -- return 105, the max score
+                --return 105
+                return self:getMaxPoints()
+
+            elseif value < 2 then
+                --return 85
+                return math.floor(self:getMaxPoints() / 1.2)
+
+            elseif value < 3 then
+                --return 70
+                return math.floor(self:getMaxPoints() / 1.35)
+
+            elseif value < 6 then
+                --return 40
+                return math.floor(self:getMaxPoints() / 2.1)
+
+            elseif value < 8 then
+                --return 25
+                return math.floor(self:getMaxPoints() / 3.7)
+
+            elseif value < 11 then
+                --return 20
+                return math.floor(self:getMaxPoints() / 4)
+
+            -- if the bolt wasn't in any other ranges...
+            else
+
+                -- return 10, the minimum score
+                return math.floor(self:getMaxPoints() / 5)
+                --return 10
+
+            end
+
+        -- if the battler has less than 2 bolts...
+        else
+
+            -- calculate it the same way deltarune does
+            if math.abs(value) == 0 then
+                return 150 -- perfect
+            elseif math.abs(value) == 1 then
+                return 120
+            elseif math.abs(value) == 2 then
+                return 110
+            elseif math.abs(value) >= 3 then
+                return 100 - (math.abs(value) * 2)
+            end
+
+        end
+    end)
+
+    ----- EVALUATESCORE
+
+    Utils.hook(Item, "evaluateScore", function(orig, self, battler, score, bolts, close)
+
+        -- if the battler has more than one bolt...
+        if battler:getBoltCount() > 1 then
+
+            -- set the threshold for a crit to be 30
+            local crit = self.critical_threshold
+
+            -- set the perfect score to be 105 (the maximum points a hit could give) / a battler's bolt count
+            local perfect_score = self:getMaxPoints() * battler:getBoltCount()
+    
+            -- if the difference between the perfect score and the actual score is less than or equal to the crit threshold...
+            if perfect_score - score <= crit then
+
+                -- 150 points are awarded, which is the minimum for a crit
+                return 150
+
+            -- if the difference between the perfect score and the actual score is less than or equal the difference between 75 and the threshold...
+            elseif perfect_score - score <= 75 - crit then
+
+                -- 120 points are awarded
+                return 120
+
+            -- if the difference between the perfect score and the actual score is less than or equal the difference between 150 and the threshold...
+            elseif perfect_score - score <= 150 - crit then
+
+                -- 110 points are awarded
+                return 110
+
+            -- otherwise...
+            else
+
+                -- points are awarded relative to the score of the attack itself, divided by 2.5, rounded up, then summed with 20.
+                return Utils.round(score / 3)
+
+            end
+
+        -- if the battler has less than 2 bolts...
+        else
+
+            -- the score from evaluateHit is returned to the damage function, as-is
+            return score
+
+        end
     end)
 
     ----------------------------------------------------------------------------------
@@ -255,26 +376,60 @@ function Lib:init()
 
         orig(self, chara, x, y)
 
-        self.attack_type = "normal"
-
-        self.bolt_count = 0
-        self.bolt_speed = 0
-        
-        for _,item in ipairs(self.chara:getEquipment()) do
-            self.bolt_count = self.bolt_count + item:getBoltCount()
-            self.bolt_speed = self.bolt_speed + item:getBoltSpeed()
-        end
+        self.bolt_count = nil
+        self.bolt_speed = nil
+        self.bolt_offset = nil
     
     end)
 
     -- these are initialized as 0, so math.max is used to set it to 1 if no bolts are added
     Utils.hook(PartyBattler, "getBoltCount", function(orig, self)
-        return math.max(self.bolt_count, 1)
+
+        self.bolt_count = 0
+
+        for _,equip in ipairs(self.chara:getEquipment()) do
+            if equip:getBoltCount() then
+                self.bolt_count = self.bolt_count + equip:getBoltCount()
+            else
+                if equip.type == "weapon" then
+                    self.bolt_count = 1
+                end
+            end
+        end
+
+        return self.bolt_count
+
     end)
 
     -- 8 is the default speed. if you change this, i recommend setting it to a multiple of 8 so the bolts don't desync
     Utils.hook(PartyBattler, "getBoltSpeed", function(orig, self)
-        return math.max(self.bolt_speed, 8) 
+
+        self.bolt_speed = 0
+
+        for _,equip in ipairs(self.chara:getEquipment()) do
+            if equip:getBoltSpeed() then
+                self.bolt_speed = self.bolt_speed + equip:getBoltSpeed()
+            else
+                if equip.type == "weapon" then
+                    self.bolt_speed = AttackBox.BOLTSPEED
+                end
+            end
+        end
+
+        return self.bolt_speed
+
+    end)
+
+    Utils.hook(PartyBattler, "getBoltOffset", function(orig, self)
+
+        self.bolt_offset = 0
+
+        for _,equip in ipairs(self.chara:getEquipment()) do
+            self.bolt_offset = self.bolt_offset + equip:getBoltOffset()
+        end
+
+        return self.bolt_offset
+
     end)
 
     ----------------------------------------------------------------------------------
@@ -285,11 +440,11 @@ function Lib:init()
 
     Utils.hook(AttackBox, "init", function(orig, self, battler, offset, x, y)
 
-        AttackBox.__super:init(self, x, y)
+        AttackBox.__super.init(self, x, y)
     
         self.battler = battler
         self.weapon = battler.chara:getWeapon()
-        self.offset = offset + self.weapon:getBoltOffset()
+        self.offset = offset + self.battler:getBoltOffset()
     
         self.head_sprite = Sprite(battler.chara:getHeadIcons().."/head", 21, 19)
         self.head_sprite:setOrigin(0.5, 0.5)
@@ -298,17 +453,32 @@ function Lib:init()
         self.press_sprite = Sprite("ui/battle/press", 42, 0)
         self:addChild(self.press_sprite)
     
-        self.bolt_target = 80 + 2
+        self.bolt_target = (80 + 2) + self.weapon:getBoltTarget()
+        self.bolt_miss_zone = self.weapon:getBoltMissZone()
+
         self.bolt_start_x = self.bolt_target + self.offset * (self.battler:getBoltSpeed())
     
         self.bolts = {}
         self.score = 0
-    
-        for i = 1, self.battler:getBoltCount() do
-            local bolt = AttackBar(self.bolt_start_x + ((i * 80)), 0, 6, 38)
+
+        for i = 0, self.battler:getBoltCount() - 1 do
+
+            local bolt
+
+            if i == 0 then
+                bolt = AttackBar(self.bolt_start_x + (i * 80), 0, 6, 38)
+            else
+
+                local min, max = Utils.unpack(self.weapon:getMultiboltVariance())
+                local bolt_variance = Utils.round(Utils.random(min, max))
+                bolt = AttackBar(self.bolts[1].x + (i * (80 + bolt_variance)), 0, 6, 38)
+
+            end
+
             bolt.layer = 1
             table.insert(self.bolts, bolt)
             self:addChild(bolt)
+            
         end
     
         self.fade_rect = Rectangle(0, 0, SCREEN_WIDTH, 38)
@@ -334,49 +504,29 @@ function Lib:init()
     -----  HIT
 
     Utils.hook(AttackBox, "hit", function(orig, self)
-        local bolt = self.bolts[1]
+        
         local close = self:getClose()
 
-        self.score = self.score + self.weapon:evaluateHit(self.battler, close)
-
-        bolt:resetPhysics()
-
-        self.weapon:boltBurst(self.battler, bolt, close)
-
-        table.remove(self.bolts, 1)
-
-        if #self.bolts == 0 then
-            self.attacked = true
+        for _,equip in ipairs(self.battler.chara:getEquipment()) do
+            return equip:onHit(self.battler, self.score, self.bolts, close)
         end
 
-        if self.attacked then
-            return self.weapon:evaluateScore(self.battler, self.score)
-        end
     end)
 
     -----  MISS
 
     Utils.hook(AttackBox, "miss", function(orig, self)
 
-        if self.battler:getBoltCount() > 1 then
-            self.bolts[1]:fadeOutSpeedAndRemove(0.45)
-        
-            table.remove(self.bolts, 1)
+        local close = self:getClose()
 
-            if #self.bolts == 0 then
-                self.attacked = true
-            end
-        
-            return self.weapon:evaluateScore(self.battler, self.score)
-        else
-            self.bolts[1]:remove()
-
-            table.remove(self.bolts, 1)
-
-            if #self.bolts == 0 then
-                self.attacked = true
+        for _,equip in ipairs(self.battler.chara:getEquipment()) do
+            if equip.type == "armor" then
+                return equip:onArmorMiss(self.battler, self.score, self.bolts, close)
+            elseif equip.type == "weapon" then
+                return equip:onWeaponMiss(self.battler, self.score, self.bolts, close)
             end
         end
+
     end)
 
     -----  UPDATE
@@ -387,6 +537,9 @@ function Lib:init()
         end
     
         if not self.attacked then
+
+            self.afterimage_timer = self.afterimage_timer + DTMULT/2
+
             for _,bolt in ipairs(self.bolts) do
 
                 local accel = self.weapon:getBoltAcceleration()
@@ -399,6 +552,21 @@ function Lib:init()
                     bolt:move(-(self.battler:getBoltSpeed()) * DTMULT, 0)
                 end
 
+                if not bolt.afterimage_count then
+                    bolt.afterimage_count = 0
+                end
+
+                if self.battler:getBoltCount() == 1 and accel == 0 then
+                    while math.floor(self.afterimage_timer) > self.afterimage_count do
+                        self.afterimage_count = self.afterimage_count + 1
+                        local afterimg = AttackBar(self.bolt_start_x - (self.afterimage_count * self.battler:getBoltSpeed() * 2), 0, 6, 38)
+                        afterimg.layer = 3
+                        afterimg.alpha = 0.4
+                        afterimg:fadeOutSpeedAndRemove()
+                        self:addChild(afterimg)
+                    end
+                end
+
             end
         end
     
@@ -408,12 +576,13 @@ function Lib:init()
             self.flash = Utils.approach(self.flash, 0, DTMULT/5)
         end
 
-        AttackBox.__super:update(self)
+        AttackBox.__super.update(self)
     end)
 
     -----  DRAW
 
     Utils.hook(AttackBox, "draw", function(orig, self)
+
         local target_color = {self.battler.chara:getAttackBarColor()}
         local box_color = {self.battler.chara:getAttackBoxColor()}
     
@@ -427,11 +596,12 @@ function Lib:init()
         love.graphics.setColor(box_color)
         love.graphics.rectangle("line", 80, 1, (15 * (self.battler:getBoltSpeed())) + 3, 36)
         love.graphics.setColor(target_color)
-        love.graphics.rectangle("line", 83, 1, 8, 36)
+        love.graphics.rectangle("line", self.bolt_target + 1, 1, 8, 36)
     
         love.graphics.setLineWidth(1)
     
-        AttackBox.__super:draw(self)
+        AttackBox.__super.draw(self)
+
     end)
 
     ----------------------------------------------------------------------------------
@@ -458,13 +628,13 @@ function Lib:init()
         end
 
         if action.action == "ATTACK" or action.action == "AUTOATTACK" then
-            if attackbox.attacked then
+            if attackbox.attacked then -- only reason this needs to be hooked lmao
                 local src = Assets.stopAndPlaySound(battler.chara:getAttackSound() or "laz_c")
                 src:setPitch(battler.chara:getAttackPitch() or 1)
         
                 self.actions_done_timer = 1.2
         
-                local crit = action.points == 150 and action.action ~= "AUTOATTACK"
+                local crit = action.points >= 150 --[[i lied]] and action.action ~= "AUTOATTACK"
                 if crit then
                     Assets.stopAndPlaySound("criticalswing")
         
@@ -581,42 +751,31 @@ function Lib:init()
 
             local all_done = true
 
-            for _,attack in ipairs(self.battle_ui.attack_boxes) do
-                if not attack.attacked and attack.fade_rect.alpha < 1 then
-                    local close = attack:getClose()
+            for _,box in ipairs(self.battle_ui.attack_boxes) do
+                if not box.attacked and box.fade_rect.alpha < 1 then
 
-                    if attack.battler:getBoltCount() > 1 then
-                        if close <= -5 and #attack.bolts > 1 then
+                    local close = box:getClose()
 
-                            all_done = false
-                            attack:miss()                            
+                    if close <= box.bolt_miss_zone and #box.bolts > 1 then
 
-                        elseif close <= -5 then
-                            local points = attack:miss() -- lmao
+                        all_done = false
+                        box:miss()                 
 
-                            local action = self:getActionBy(attack.battler)
-                            action.points = points
+                    elseif close <= box.bolt_miss_zone then
 
-                            if self:processAction(action) then
-                                self:finishAction(action)
-                            end
-                        else
-                            all_done = false
+                        local points = box:miss() -- lmao
+
+                        local action = self:getActionBy(box.battler)
+                        action.points = points
+
+                        if self:processAction(action) then
+                            self:finishAction(action)
                         end
+
                     else
-                        if close <= -5 then
-                            attack:miss()
-        
-                            local action = self:getActionBy(attack.battler)
-                            action.points = 0
-        
-                            if self:processAction(action) then
-                                self:finishAction(action)
-                            end
-                        else
-                            all_done = false
-                        end
+                        all_done = false
                     end
+
                 end
             end
 
@@ -645,7 +804,7 @@ function Lib:init()
             local battler = box.battler
 
             if battler:getBoltCount() > 1 then
-                local perfect_score = (105 * battler:getBoltCount())
+                local perfect_score = (battler.chara:getWeapon():getMaxPoints() * battler:getBoltCount())
                 local crit = battler.chara:getWeapon():getCriticalThreshold()
                 local crit_req = perfect_score - crit
         
@@ -655,7 +814,7 @@ function Lib:init()
                         love.graphics.setColor(1, 1, 0, 1)
                     end
 
-                    self:debugPrintOutline(box.battler.chara.name .. "'s score: " .. ui.attack_boxes[i].score .. ", (" .. crit_req .. " for a crit)", 4, ui.attack_boxes[i].y + 310)
+                    self:debugPrintOutline(battler.chara.name .. "'s score: " .. ui.attack_boxes[i].score .. ", (" .. crit_req .. " for a crit)", 4, ui.attack_boxes[i].y + 310)
                 end
             end
 
@@ -666,7 +825,6 @@ function Lib:init()
 end
 
 return Lib
-
 
 --[[     Utils.hook(AttackBox, "hit", function(orig, self)
         local bolt = self.bolts[1]
