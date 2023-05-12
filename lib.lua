@@ -32,6 +32,7 @@ function Lib:init()
         self.bolt_miss_zone = nil
 
         self.critical_threshold = 30 -- here for ease of use and for the debug display
+        self.critical_bonus = 0
         self.max_points = nil
     
     end)
@@ -75,6 +76,10 @@ function Lib:init()
  
     Utils.hook(Item, "getCriticalThreshold", function(orig, self)
         return self.critical_threshold
+    end)
+
+    Utils.hook(Item, "getCriticalBonus", function(orig, self)
+        return self.critical_bonus
     end)
 
     Utils.hook(Item, "getMaxPoints", function(orig, self)
@@ -335,7 +340,8 @@ function Lib:init()
             if perfect_score - score <= crit then
 
                 -- 150 points are awarded, which is the minimum for a crit
-                return 150
+
+                return 150 + self.critical_bonus
 
             -- if the difference between the perfect score and the actual score is less than or equal the difference between 75 and the threshold...
             elseif perfect_score - score <= 75 - crit then
@@ -469,8 +475,8 @@ function Lib:init()
                 bolt = AttackBar(self.bolt_start_x + (i * 80), 0, 6, 38)
             else
 
-                local min, max = Utils.unpack(self.weapon:getMultiboltVariance())
-                local bolt_variance = Utils.round(Utils.random(min, max))
+                local min, max = math.abs(Utils.unpack(self.weapon:getMultiboltVariance()))
+                local bolt_variance = Utils.round(Utils.random(-min, max))
                 bolt = AttackBar(self.bolts[1].x + (i * (80 + bolt_variance)), 0, 6, 38)
 
             end
