@@ -21,10 +21,8 @@ function Lib:init()
         self.bolt_count = nil
         self.bolt_speed = nil
         self.bolt_offset = 0
-
-        self.multibolt_variance = {0, 0}
-
         self.bolt_accel = 0
+        self.multibolt_variance = {0, 0}
 
         self.bolt_target = 0
         self.bolt_miss_threshold = nil
@@ -179,33 +177,23 @@ function Lib:init()
         if battler:getBoltCount() > 1 then
 
             if close == 0 then
-
                 Assets.stopAndPlaySound("victor", 1.2)
                 bolt:setColor(1, 1, 0)
                 bolt.burst_speed = 0.2
-
             elseif close >= 6 or close <= -3 then
-
                 bolt:setColor(1, 80/255, 80/255, 1)
-            
             else
-
                 Assets.stopAndPlaySound("hit", 1.1)
                 bolt:setColor(battler.chara:getDamageColor())
-
             end
 
         else
 
             if close == 0 then
-
                 bolt:setColor(1, 1, 0)
                 bolt.burst_speed = 0.2
-            
             elseif (math.abs(close) >= 3) then
-
                 bolt:setColor(battler.chara:getDamageColor())
-
             end
 
         end
@@ -407,8 +395,11 @@ function Lib:init()
                 bolt = AttackBar(self.bolt_start_x + (i * 80), 0, 6, 38)
             else
 
-                local min, max = math.abs(Utils.unpack(self.weapon:getMultiboltVariance()))
+                local min = math.abs(self.weapon:getMultiboltVariance()[1])
+                local max = math.abs(self.weapon:getMultiboltVariance()[2])
+                print(min .. " " .. max)
                 local bolt_variance = Utils.round(Utils.random(-min, max))
+                print(bolt_variance)
                 bolt = AttackBar(self.bolts[1].x + (i * (80 + bolt_variance)), 0, 6, 38)
 
             end
