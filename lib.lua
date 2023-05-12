@@ -18,8 +18,6 @@ function Lib:init()
 
         orig(self)
 
-        self.bolt_hit_type = "all"
-
         self.bolt_count = nil
         self.bolt_speed = nil
         self.bolt_offset = 0
@@ -29,7 +27,7 @@ function Lib:init()
         self.bolt_accel = 0
 
         self.bolt_target = 0
-        self.bolt_miss_zone = nil
+        self.bolt_miss_threshold = nil
 
         self.critical_threshold = 30 -- here for ease of use and for the debug display
         self.critical_bonus = 0
@@ -37,10 +35,6 @@ function Lib:init()
     
     end)
 
-    Utils.hook(Item, "getHitType", function(orig, self)
-        return self.bolt_hit_type
-    end)
-    
     Utils.hook(Item, "getBoltCount", function(orig, self)
         return self.bolt_count
     end)
@@ -65,13 +59,13 @@ function Lib:init()
         return self.bolt_target
     end)
 
-    Utils.hook(Item, "getBoltMissZone", function(orig, self)
+    Utils.hook(Item, "getBoltMissThreshold", function(orig, self)
 
-        if not self.bolt_miss_zone then
-            self.bolt_miss_zone = -5
+        if not self.bolt_miss_threshold then
+            self.bolt_miss_threshold = -5
         end
 
-        return self.bolt_miss_zone
+        return self.bolt_miss_threshold
     end)
  
     Utils.hook(Item, "getCriticalThreshold", function(orig, self)
@@ -94,7 +88,6 @@ function Lib:init()
 
     ----- CALLBACKS
 
-    -- bolts is a table
     Utils.hook(Item, "onHit", function(orig, self, battler, score, bolts, close)
 
         local attackbox
@@ -178,74 +171,44 @@ function Lib:init()
 
         local bolt = bolts[1]
 
-        -- if the battler has more than one bolt...
+        bolt:burst()
+        bolt.layer = 1
+        bolt:setPosition(bolt:getRelativePos(0, 0, Game.battle.battle_ui))
+        bolt:setParent(Game.battle.battle_ui)
+
         if battler:getBoltCount() > 1 then
 
-            -- if the bolt is in the crit zone...
-            if close >= 0 and close <= 0 then
-
-                -- play the perfect sound
-                Assets.stopAndPlaySound("victor", 1.2)
-
-                -- make the bolt yellow
-                bolt:setColor(1, 1, 0)
-
-                -- make it burst faster
-                bolt.burst_speed = 0.2
-
-            -- if the bolt is too far from the crit zone...
-            elseif close >= 6 or close <= -3 then
-
-                -- make it red
-                bolt:setColor(1, 80/255, 80/255, 1)
-            
-            -- otherwise...
-            else
-
-                -- play the hit sound
-                Assets.stopAndPlaySound("hit", 1.1)
-
-                -- make the bolt the same color as the character's damage color
-                bolt:setColor(battler.chara:getDamageColor())
-
-            end
-
-        -- otherwise...
-        else
-
-            -- if the bolt is in the crit zone...
             if close == 0 then
 
-                -- make the bolt yellow
+                Assets.stopAndPlaySound("victor", 1.2)
                 bolt:setColor(1, 1, 0)
-
-                -- make it burst faster
                 bolt.burst_speed = 0.2
+
+            elseif close >= 6 or close <= -3 then
+
+                bolt:setColor(1, 80/255, 80/255, 1)
             
+            else
 
-            -- if the bolt is too far from the crit zone...
-            elseif close >= 3 then
-
-                -- make the bolt the same color as the character's damage color
+                Assets.stopAndPlaySound("hit", 1.1)
                 bolt:setColor(battler.chara:getDamageColor())
 
             end
 
-            -- otherwise, keep it the same color
+        else
+
+            if close == 0 then
+
+                bolt:setColor(1, 1, 0)
+                bolt.burst_speed = 0.2
+            
+            elseif (math.abs(close) >= 3) then
+
+                bolt:setColor(battler.chara:getDamageColor())
+
+            end
 
         end
-
-        -- make sure the bolt is on layer 4 so bolts don't overlap hopefully
-        bolt.layer = 4
-
-        -- play the bolt's burst animation
-        bolt:burst()
-
-        -- make sure the bolt doesn't move
-        bolt:setPosition(bolt:getRelativePos(0, 0, bolt.parent))
-
-        -- set the bolt's parent
-        bolt:setParent(bolt.parent)
         
     end)
 
@@ -253,65 +216,59 @@ function Lib:init()
 
     Utils.hook(Item, "evaluateHit", function(orig, self, battler, value)
 
-        -- if the battler has more than one bolt...
         if battler:getBoltCount() > 1 then
 
-            -- if the bolt went past the crit box but isn't too far from it...
             if value < -1 then
 
-                -- return 50 points to the hit function for scoring
                 --return 50
                 return math.floor(self:getMaxPoints() / 1.4)
 
-            -- if the bolt went past the crit box just a bit...
             elseif value < 0 then
 
-                -- return 70 points
                 --return 70
                 return math.floor(self:getMaxPoints() / 1.3)
 
-            -- if the bolt was in the crit box...
             elseif value < 1 then
-
-                -- return 105, the max score
+                
                 --return 105
                 return self:getMaxPoints()
 
             elseif value < 2 then
+
                 --return 85
                 return math.floor(self:getMaxPoints() / 1.2)
 
             elseif value < 3 then
+
                 --return 70
                 return math.floor(self:getMaxPoints() / 1.35)
 
             elseif value < 6 then
+
                 --return 40
                 return math.floor(self:getMaxPoints() / 2.1)
 
             elseif value < 8 then
+
                 --return 25
                 return math.floor(self:getMaxPoints() / 3.7)
 
             elseif value < 11 then
+
                 --return 20
                 return math.floor(self:getMaxPoints() / 4)
 
-            -- if the bolt wasn't in any other ranges...
             else
 
-                -- return 10, the minimum score
-                return math.floor(self:getMaxPoints() / 5)
                 --return 10
+                return math.floor(self:getMaxPoints() / 5)
 
             end
 
-        -- if the battler has less than 2 bolts...
         else
 
-            -- calculate it the same way deltarune does
             if math.abs(value) == 0 then
-                return 150 -- perfect
+                return 150
             elseif math.abs(value) == 1 then
                 return 120
             elseif math.abs(value) == 2 then
@@ -327,48 +284,23 @@ function Lib:init()
 
     Utils.hook(Item, "evaluateScore", function(orig, self, battler, score, bolts, close)
 
-        -- if the battler has more than one bolt...
         if battler:getBoltCount() > 1 then
 
-            -- set the threshold for a crit to be 30
             local crit = self.critical_threshold
-
-            -- set the perfect score to be 105 (the maximum points a hit could give) / a battler's bolt count
             local perfect_score = self:getMaxPoints() * battler:getBoltCount()
     
-            -- if the difference between the perfect score and the actual score is less than or equal to the crit threshold...
             if perfect_score - score <= crit then
-
-                -- 150 points are awarded, which is the minimum for a crit
-
                 return 150 + self.critical_bonus
-
-            -- if the difference between the perfect score and the actual score is less than or equal the difference between 75 and the threshold...
             elseif perfect_score - score <= 75 - crit then
-
-                -- 120 points are awarded
                 return 120
-
-            -- if the difference between the perfect score and the actual score is less than or equal the difference between 150 and the threshold...
             elseif perfect_score - score <= 150 - crit then
-
-                -- 110 points are awarded
                 return 110
-
-            -- otherwise...
             else
-
-                -- points are awarded relative to the score of the attack itself, divided by 2.5, rounded up, then summed with 20.
                 return Utils.round(score / 3)
-
             end
 
-        -- if the battler has less than 2 bolts...
         else
-
-            -- the score from evaluateHit is returned to the damage function, as-is
             return score
-
         end
     end)
 
@@ -460,9 +392,9 @@ function Lib:init()
         self:addChild(self.press_sprite)
     
         self.bolt_target = (80 + 2) + self.weapon:getBoltTarget()
-        self.bolt_miss_zone = self.weapon:getBoltMissZone()
+        self.bolt_miss_threshold = self.weapon:getBoltMissThreshold()
 
-        self.bolt_start_x = self.bolt_target + self.offset * (self.battler:getBoltSpeed())
+        self.bolt_start_x = self.bolt_target + (self.offset * self.battler:getBoltSpeed())
     
         self.bolts = {}
         self.score = 0
@@ -762,12 +694,12 @@ function Lib:init()
 
                     local close = box:getClose()
 
-                    if close <= box.bolt_miss_zone and #box.bolts > 1 then
+                    if close <= box.bolt_miss_threshold and #box.bolts > 1 then
 
                         all_done = false
                         box:miss()                 
 
-                    elseif close <= box.bolt_miss_zone then
+                    elseif close <= box.bolt_miss_threshold then
 
                         local points = box:miss() -- lmao
 
@@ -831,101 +763,3 @@ function Lib:init()
 end
 
 return Lib
-
---[[     Utils.hook(AttackBox, "hit", function(orig, self)
-        local bolt = self.bolts[1]
-
-        if self.battler:getBoltCount() > 1 then
-            self.score = self.score + self:evaluateHit(self:getClose())
-        
-            if self:getClose() >= 0 and self:getClose() <= 0 then
-                Assets.stopAndPlaySound("victor", 1.2)
-                bolt:setColor(1, 1, 0)
-                bolt.burst_speed = 0.2
-            elseif self:getClose() >= 6 or self:getClose() <= -3 then
-                bolt:setColor(1, 80/255, 80/255, 1)
-            else
-                Assets.stopAndPlaySound("hit", 1.1)
-                bolt:setColor(self.battler.chara:getDamageColor())
-            end
-
-            bolt:burst()
-            bolt.layer = 1
-            bolt:setPosition(bolt:getRelativePos(0, 0, self.parent))
-            bolt:setParent(self.parent)
-        
-            table.remove(self.bolts, 1)
-        
-            return self:evaluateScore()
-
-        else
-            local p = math.abs(self:getClose())
-
-            self.attacked = true
-            table.remove(self.bolts, 1)
-
-            bolt:burst()
-            bolt.layer = 1
-            bolt:setPosition(bolt:getRelativePos(0, 0, self.parent))
-            bolt:setParent(self.parent)
-
-            if p == 0 then
-                bolt:setColor(1, 1, 0)
-                bolt.burst_speed = 0.2
-                return 150
-            elseif p == 1 then
-                return 120
-            elseif p == 2 then
-                return 110
-            elseif p >= 3 then
-                bolt:setColor(self.battler.chara:getDamageColor())
-                return 100 - (p * 2)
-            end
-            
-        end
-    end) ]]
-
-    --[[     Utils.hook(AttackBox, "evaluateHit", function(orig, self, value)
-        if value < -1 then
-            return 50
-        elseif value < 0 then
-            return 70
-        elseif value < 1 then
-            return 105 -- perfect
-        elseif value < 2 then
-            return 85
-        elseif value < 3 then
-            return 70
-        elseif value < 6 then
-            return 40
-        elseif value < 8 then
-            return 25
-        elseif value < 11 then
-            return 20
-        else
-            return 10
-        end
-    end) ]]
-
-    -----  EVALUATESCORE (ONLY FOR MULTIBOLT)
-
---[[     Utils.hook(AttackBox, "evaluateScore", function(orig, self)
-        if #self.bolts == 0 then
-            self.attacked = true
-        end
-    
-        if self.attacked then
-            local crit = Utils.round(math.min(Lib.CRIT_THRESHOLD, 70))
-            local perfect_score = 105 * self.battler:getBoltCount()
-    
-            if perfect_score - self.score <= crit then
-                return 150
-            elseif perfect_score - self.score <= 70 then
-                return 120
-            elseif perfect_score - self.score <= 120 then
-                return 110
-            else
-                return math.min(self.score / 2, 60)
-            end
-        end
-    end) ]]
