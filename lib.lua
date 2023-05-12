@@ -397,9 +397,7 @@ function Lib:init()
 
                 local min = math.abs(self.weapon:getMultiboltVariance()[1])
                 local max = math.abs(self.weapon:getMultiboltVariance()[2])
-                print(min .. " " .. max)
                 local bolt_variance = Utils.round(Utils.random(-min, max))
-                print(bolt_variance)
                 bolt = AttackBar(self.bolts[1].x + (i * (80 + bolt_variance)), 0, 6, 38)
 
             end
