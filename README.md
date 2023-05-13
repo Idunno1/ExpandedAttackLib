@@ -1,6 +1,6 @@
-# ExpandedAttackLib for Kristal
+# ExpandedAttackLib for [Kristal](https://github.com/KristalTeam/Kristal)
 
-Add more variety to your FIGHT command today!
+Add more variety to your FIGHT actionbutton today!
 
 ## This library adds:
 
@@ -9,5 +9,21 @@ Add more variety to your FIGHT command today!
 * Per-weapon attack score calculation
 * ...And (probably) more!
 
-Releases: https://github.com/Idunno1/ExpandedAttackLib/releases
-(I recommend cloning the repo but y'know) 
+## Credits:
+
+### Creator:
+* Sam Deluxe
+
+### Testers:
+* Charbomber
+* AcousticJamm
+
+### Programming Assistance:
+* Kristal Team
+
+### Default Sound Effects:
+* UNDERTALE
+
+## Releases:
+https://github.com/Idunno1/ExpandedAttackLib/releases<br>
+(I recommend cloning the repo but y'know)
