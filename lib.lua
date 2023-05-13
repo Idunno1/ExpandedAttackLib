@@ -395,9 +395,9 @@ function Lib:init()
                 bolt = AttackBar(self.bolt_start_x + (i * 80), 0, 6, 38)
             else
 
-                local min = math.abs(self.weapon:getMultiboltVariance()[1])
-                local max = math.abs(self.weapon:getMultiboltVariance()[2])
-                local bolt_variance = Utils.round(Utils.random(-min, max))
+                local min = self.weapon:getMultiboltVariance()[1]
+                local max = self.weapon:getMultiboltVariance()[2]
+                local bolt_variance = Utils.round(Utils.random(min, max))
                 bolt = AttackBar(self.bolts[1].x + (i * (80 + bolt_variance)), 0, 6, 38)
 
             end
