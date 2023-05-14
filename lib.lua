@@ -202,46 +202,46 @@ function Lib:init()
 
     ----- EVALUATEHIT
 
-    Utils.hook(Item, "evaluateHit", function(orig, self, battler, value)
+    Utils.hook(Item, "evaluateHit", function(orig, self, battler, close)
 
         if battler:getBoltCount() > 1 then
 
-            if value < -1 then
+            if close < -1 then
 
                 --return 50
                 return math.floor(self:getMaxPoints() / 1.4)
 
-            elseif value < 0 then
+            elseif close < 0 then
 
                 --return 70
                 return math.floor(self:getMaxPoints() / 1.3)
 
-            elseif value < 1 then
+            elseif close < 1 then
                 
                 --return 105
                 return self:getMaxPoints()
 
-            elseif value < 2 then
+            elseif close < 2 then
 
                 --return 85
                 return math.floor(self:getMaxPoints() / 1.2)
 
-            elseif value < 3 then
+            elseif close < 3 then
 
                 --return 70
                 return math.floor(self:getMaxPoints() / 1.35)
 
-            elseif value < 6 then
+            elseif close < 6 then
 
                 --return 40
                 return math.floor(self:getMaxPoints() / 2.1)
 
-            elseif value < 8 then
+            elseif close < 8 then
 
                 --return 25
                 return math.floor(self:getMaxPoints() / 3.7)
 
-            elseif value < 11 then
+            elseif close < 11 then
 
                 --return 20
                 return math.floor(self:getMaxPoints() / 4)
@@ -255,14 +255,14 @@ function Lib:init()
 
         else
 
-            if math.abs(value) == 0 then
+            if math.abs(close) == 0 then
                 return 150
-            elseif math.abs(value) == 1 then
+            elseif math.abs(close) == 1 then
                 return 120
-            elseif math.abs(value) == 2 then
+            elseif math.abs(close) == 2 then
                 return 110
-            elseif math.abs(value) >= 3 then
-                return 100 - (math.abs(value) * 2)
+            elseif math.abs(close) >= 3 then
+                return 100 - (math.abs(close) * 2)
             end
 
         end
@@ -287,9 +287,16 @@ function Lib:init()
                 return Utils.round(score / 3)
             end
 
-        else
+        elseif battler:getBoltCount() == 1 and score == 150 then
+
+            return score + self.critical_bonus
+
+        elseif battler:getBoltCount() == 1 then
+
             return score
+
         end
+        
     end)
 
     ----------------------------------------------------------------------------------
