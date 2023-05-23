@@ -1,12 +1,23 @@
 local Lib = {}
 
+--[[  TODO:
+
+    -- utdeltatrav bhud compat naturally
+
+]]
+
 function Lib:init()
 
     ----------------------------------------------------------------------------------
     -----  BITCH
     ----------------------------------------------------------------------------------
 
-    print(self.info.id .. " version " .. self.info.version .. " has been engaged.")
+    print(self.info.id .. " version " .. self.info.version .. ": Getting ready...")
+
+    if Mod.libs["moreparty"] then
+        print(self.info.id .. ": MoreParty detected!")
+        Lib.MOREPARTY = true
+    end
 
     ----------------------------------------------------------------------------------
     -----  ITEM HOOKS
@@ -110,6 +121,100 @@ function Lib:init()
 
     end)
 
+    Utils.hook(Item, "onAttack", function(orig, self, battler, score, bolts, close)
+    
+        return self:evaluateScore(battler, score)
+    
+    end)
+
+    Utils.hook(Item, "onDamage", function(orig, self, action, battler, enemy, score, bolts, close)
+
+        local src = Assets.stopAndPlaySound(battler.chara:getAttackSound() or "laz_c")
+        src:setPitch(battler.chara:getAttackPitch() or 1)
+
+        self.actions_done_timer = 1.2
+
+        local crit = action.points >= 150 --[[i lied]] and action.action ~= "AUTOATTACK"
+        if crit then
+            Assets.stopAndPlaySound("criticalswing")
+
+            for i = 1, 3 do
+                local sx, sy = battler:getRelativePos(battler.width, 0)
+                local sparkle = Sprite("effects/criticalswing/sparkle", sx + Utils.random(50), sy + 30 + Utils.random(30))
+                sparkle:play(4/30, true)
+                sparkle:setScale(2)
+                sparkle.layer = BATTLE_LAYERS["above_battlers"]
+                sparkle.physics.speed_x = Utils.random(2, 6)
+                sparkle.physics.friction = -0.25
+                sparkle:fadeOutSpeedAndRemove()
+                Game.battle:addChild(sparkle)
+            end
+        end
+
+        battler:setAnimation("battle/attack", function()
+            action.icon = nil
+
+            if action.target and action.target.done_state then
+                enemy = Game.battle:retargetEnemy()
+                action.target = enemy
+                if not enemy then
+                    Game.battle.cancel_attack = true
+                    Game.battle:finishAction(action)
+                    return
+                end
+            end
+
+            local damage = Utils.round(enemy:getAttackDamage(action.damage or 0, battler, action.points or 0))
+            if damage < 0 then
+                damage = 0
+            end
+
+            if damage > 0 then
+                Game:giveTension(Utils.round(enemy:getAttackTension(action.points or 100)))
+
+                local dmg_sprite = Sprite(battler.chara:getAttackSprite() or "effects/attack/cut")
+                dmg_sprite:setOrigin(0.5, 0.5)
+                if crit then
+                    dmg_sprite:setScale(2.5, 2.5)
+                else
+                    dmg_sprite:setScale(2, 2)
+                end
+                dmg_sprite:setPosition(enemy:getRelativePos(enemy.width/2, enemy.height/2))
+                dmg_sprite.layer = enemy.layer + 0.01
+                dmg_sprite:play(1/15, false, function(s) s:remove() end)
+                enemy.parent:addChild(dmg_sprite)
+
+                local sound = enemy:getDamageSound() or "damage"
+                if sound and type(sound) == "string" then
+                    Assets.stopAndPlaySound(sound)
+                end
+                enemy:hurt(damage, battler)
+
+                battler.chara:onAttackHit(enemy, damage)
+            else
+                enemy:statusMessage("msg", "miss", {battler.chara:getDamageColor()})
+            end
+
+            Game.battle:finishAction(action)
+
+            Utils.removeFromTable(Game.battle.normal_attackers, battler)
+            Utils.removeFromTable(Game.battle.auto_attackers, battler)
+
+            if not Game.battle:retargetEnemy() then
+                Game.battle.cancel_attack = true
+            elseif #Game.battle.normal_attackers == 0 and #Game.battle.auto_attackers > 0 then
+                local next_attacker = Game.battle.auto_attackers[1]
+
+                local next_action = Game.battle:getActionBy(next_attacker)
+                if next_action then
+                    Game.battle:beginAction(next_action)
+                    Game.battle:processAction(next_action)
+                end
+            end
+        end)
+
+    end)
+
     Utils.hook(Item, "onWeaponMiss", function(orig, self, battler, score, bolts, close)
 
         local attackbox
@@ -157,10 +262,7 @@ function Lib:init()
 
         if #bolts == 0 then
             attackbox.attacked = true
-        end
-
-        if attackbox.attacked then
-            return self:evaluateScore(battler, score)
+            return self:onAttack(battler, score, bolts, close)
         end
     
     end)
@@ -305,9 +407,9 @@ function Lib:init()
 
     -----  NEW PROPERTIES AND CALLBACKS
 
-    Utils.hook(PartyBattler, "init", function(orig, self, chara, x, y)
+    Utils.hook(PartyBattler, "createPartyBattlers", function(orig, self)
 
-        orig(self, chara, x, y)
+        orig(self)
 
         self.bolt_count = nil
         self.bolt_speed = nil
@@ -325,7 +427,7 @@ function Lib:init()
                 self.bolt_count = self.bolt_count + equip:getBoltCount()
             else
                 if equip.type == "weapon" then
-                    self.bolt_count = 1
+                    self.bolt_count = self.bolt_count + 1
                 end
             end
         end
@@ -344,7 +446,7 @@ function Lib:init()
                 self.bolt_speed = self.bolt_speed + equip:getBoltSpeed()
             else
                 if equip.type == "weapon" then
-                    self.bolt_speed = AttackBox.BOLTSPEED
+                    self.bolt_speed = self.bolt_speed + AttackBox.BOLTSPEED
                 end
             end
         end
@@ -493,7 +595,15 @@ function Lib:init()
                 if self.battler:getBoltCount() == 1 and accel == 0 then
                     while math.floor(self.afterimage_timer) > self.afterimage_count do
                         self.afterimage_count = self.afterimage_count + 1
-                        local afterimg = AttackBar(self.bolt_start_x - (self.afterimage_count * self.battler:getBoltSpeed() * 2), 0, 6, 38)
+
+                        local afterimg
+
+                        if Lib.MOREPARTY then
+                            afterimg = AttackBar(self.bolt_start_x - (self.afterimage_count * self.battler:getBoltSpeed() * 2), 0, 6, self.realHeight)
+                        else
+                            afterimg = AttackBar(self.bolt_start_x - (self.afterimage_count * self.battler:getBoltSpeed() * 2), 0, 6, 38)
+                        end
+
                         afterimg.layer = 3
                         afterimg.alpha = 0.4
                         afterimg:fadeOutSpeedAndRemove()
@@ -526,11 +636,18 @@ function Lib:init()
     
         love.graphics.setLineWidth(2)
         love.graphics.setLineStyle("rough")
+
+        local box_height
+        if Lib.MOREPARTY then
+            box_height = (self.realHeight or 38) - 2
+        else
+            box_height = 38 - 2
+        end
     
         love.graphics.setColor(box_color)
-        love.graphics.rectangle("line", 80, 1, (15 * (self.battler:getBoltSpeed())) + 3, 36)
+        love.graphics.rectangle("line", 80, 1, (15 * (self.battler:getBoltSpeed())) + 3, box_height)
         love.graphics.setColor(target_color)
-        love.graphics.rectangle("line", self.bolt_target + 1, 1, 8, 36)
+        love.graphics.rectangle("line", self.bolt_target + 1, 1, 8, box_height)
     
         love.graphics.setLineWidth(1)
     
@@ -562,90 +679,10 @@ function Lib:init()
         end
 
         if action.action == "ATTACK" or action.action == "AUTOATTACK" then
-            if attackbox.attacked then -- only reason this needs to be hooked lmao
-                local src = Assets.stopAndPlaySound(battler.chara:getAttackSound() or "laz_c")
-                src:setPitch(battler.chara:getAttackPitch() or 1)
-        
-                self.actions_done_timer = 1.2
-        
-                local crit = action.points >= 150 --[[i lied]] and action.action ~= "AUTOATTACK"
-                if crit then
-                    Assets.stopAndPlaySound("criticalswing")
-        
-                    for i = 1, 3 do
-                        local sx, sy = battler:getRelativePos(battler.width, 0)
-                        local sparkle = Sprite("effects/criticalswing/sparkle", sx + Utils.random(50), sy + 30 + Utils.random(30))
-                        sparkle:play(4/30, true)
-                        sparkle:setScale(2)
-                        sparkle.layer = BATTLE_LAYERS["above_battlers"]
-                        sparkle.physics.speed_x = Utils.random(2, 6)
-                        sparkle.physics.friction = -0.25
-                        sparkle:fadeOutSpeedAndRemove()
-                        self:addChild(sparkle)
-                    end
-                end
-        
-                battler:setAnimation("battle/attack", function()
-                    action.icon = nil
-        
-                    if action.target and action.target.done_state then
-                        enemy = self:retargetEnemy()
-                        action.target = enemy
-                        if not enemy then
-                            self.cancel_attack = true
-                            self:finishAction(action)
-                            return
-                        end
-                    end
-        
-                    local damage = Utils.round(enemy:getAttackDamage(action.damage or 0, battler, action.points or 0))
-                    if damage < 0 then
-                        damage = 0
-                    end
-        
-                    if damage > 0 then
-                        Game:giveTension(Utils.round(enemy:getAttackTension(action.points or 100)))
-        
-                        local dmg_sprite = Sprite(battler.chara:getAttackSprite() or "effects/attack/cut")
-                        dmg_sprite:setOrigin(0.5, 0.5)
-                        if crit then
-                            dmg_sprite:setScale(2.5, 2.5)
-                        else
-                            dmg_sprite:setScale(2, 2)
-                        end
-                        dmg_sprite:setPosition(enemy:getRelativePos(enemy.width/2, enemy.height/2))
-                        dmg_sprite.layer = enemy.layer + 0.01
-                        dmg_sprite:play(1/15, false, function(s) s:remove() end)
-                        enemy.parent:addChild(dmg_sprite)
-        
-                        local sound = enemy:getDamageSound() or "damage"
-                        if sound and type(sound) == "string" then
-                            Assets.stopAndPlaySound(sound)
-                        end
-                        enemy:hurt(damage, battler)
-        
-                        battler.chara:onAttackHit(enemy, damage)
-                    else
-                        enemy:statusMessage("msg", "miss", {battler.chara:getDamageColor()})
-                    end
-        
-                    self:finishAction(action)
-        
-                    Utils.removeFromTable(self.normal_attackers, battler)
-                    Utils.removeFromTable(self.auto_attackers, battler)
-        
-                    if not self:retargetEnemy() then
-                        self.cancel_attack = true
-                    elseif #self.normal_attackers == 0 and #self.auto_attackers > 0 then
-                        local next_attacker = self.auto_attackers[1]
-        
-                        local next_action = self:getActionBy(next_attacker)
-                        if next_action then
-                            self:beginAction(next_action)
-                            self:processAction(next_action)
-                        end
-                    end
-                end)
+            if attackbox.attacked then
+
+                battler_weapon:onDamage(action, battler, enemy, attackbox.score, attackbox.bolts, attackbox.close)
+
             end
         elseif action.action == "SKIP" then
             return true -- has to be here to prevent multi-acts from softlocking, somehow they get caught on SKIP
@@ -755,6 +792,57 @@ function Lib:init()
         end
         
     end)
+
+    ----------------------------------------------------------------------------------
+    -----  MOREPARTY COMPAT
+    ----------------------------------------------------------------------------------
+
+    -----  BEGINATTACK
+
+    Utils.hook(BattleUI, "beginAttack", function(orig, self)
+    
+        orig(self)
+
+        if Lib.MOREPARTY then
+
+            if #Game.party <= 3 then return end
+
+            local height = (115 / #Game.battle.party)
+		
+            for _,box in ipairs(self.attack_boxes) do
+
+                box.head_sprite.height = height + 4
+
+                for _,bolt in ipairs(box.bolts) do
+                    bolt.height = height
+                end
+
+                box.fade_rect.height = height
+                box.realHeight = height
+
+                local battler
+                local name = Game:getPartyMember(box.battler.chara.id)
+                for i, member in ipairs(Game.party) do
+                    if member == name then
+                        battler = i
+                        break
+                    end
+                end
+
+                box.y = 40 + (height * (battler - 1))
+            end
+
+            -- if you use k,v in for loops, i hate you
+
+        end
+
+    end)
+
+    ----------------------------------------------------------------------------------
+    -----  I DID IT
+    ----------------------------------------------------------------------------------
+
+    print(self.info.id .. ": Ready!")
 
 end
 
