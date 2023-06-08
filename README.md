@@ -31,9 +31,9 @@ https://github.com/Idunno1/ExpandedAttackLib/releases<br>
 ## Docs:
 https://github.com/Idunno1/ExpandedAttackLib/wiki
 
-## Questions that I'm probably going to get asked
-# "Why do multibolt attacks lack the afterimage effect?"
+# Questions that I'm probably going to get asked
+## "Why do multibolt attacks lack the afterimage effect?"
 I'm not exactly the most experienced programmer out there, so I had a lot of trouble trying to get them to work the way I wanted, which was to make the afterimages less prominent the more bolts an attack had. However, I had a lot of trouble trying to get the other bolts to even spawn afterimages in the first place, so I just scrapped that idea and made them not have any afterimages. They can get kind of distracting for multibolt attacks anyway, so I was hesitant to even include them in the first place. Maybe they'll come back in an update.
 
-# "Why is this thing not optimized?"
+## "Why is this thing not optimized?"
 See above.
