@@ -694,10 +694,10 @@ function Lib:init()
         end
 
         if action.action == "ATTACK" or action.action == "AUTOATTACK" then
-            if attackbox.attacked then
-
+            if action.action == "ATTACK" and attackbox.attacked then
                 battler_weapon:onAttack(action, battler, enemy, attackbox.score, attackbox.bolts, attackbox.close)
-
+            elseif action.action == "AUTOATTACK" then
+                battler_weapon:onAttack(action, battler, enemy, 150, 1, 0)
             end
         elseif action.action == "SKIP" then
             return true -- multi act fix
