@@ -512,7 +512,7 @@ function Lib:init()
             
         end
     
-        self.fade_rect = Rectangle(0, 0, SCREEN_WIDTH, 38)
+        self.fade_rect = Rectangle(0, 0, SCREEN_WIDTH, 300)
         self.fade_rect:setColor(0, 0, 0, 0)
         self.fade_rect.layer = 2
         self:addChild(self.fade_rect)
@@ -565,7 +565,7 @@ function Lib:init()
 
     Utils.hook(AttackBox, "update", function(orig, self)
         if self.removing or Game.battle.cancel_attack then
-            self.fade_rect.alpha = Utils.approach(self.fade_rect.alpha, 1, DTMULT/20)
+            self.fade_rect.alpha = Utils.approach(self.fade_rect.alpha, 1, 0.08 * DTMULT)
         end
     
         if not self.attacked then
