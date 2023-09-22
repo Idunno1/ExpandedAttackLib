@@ -33,10 +33,10 @@ function Lib:init()
         self.bolt_speed = nil
         self.bolt_offset = 0
         self.bolt_accel = 0
-        self.multibolt_variance = {0, 0}
+        self.multibolt_variance = {{80}}
 
         self.bolt_target = 0
-        self.bolt_miss_threshold = nil
+        self.bolt_miss_threshold = -5
 
         self.critical_threshold = 30 -- here for ease of use and for the debug display
         self.critical_bonus = 0
@@ -56,8 +56,12 @@ function Lib:init()
         return self.bolt_offset
     end)
 
-    Utils.hook(Item, "getMultiboltVariance", function(orig, self)
-        return self.multibolt_variance
+    Utils.hook(Item, "getMultiboltVariance", function(orig, self, index)
+        if self.multibolt_variance[index] then
+            return Utils.pick(self.multibolt_variance[index])
+        else
+            return Utils.pick(self.multibolt_variance[#self.multibolt_variance])
+        end
     end)
 
     Utils.hook(Item, "getBoltAcceleration", function(orig, self)
@@ -69,11 +73,6 @@ function Lib:init()
     end)
 
     Utils.hook(Item, "getBoltMissThreshold", function(orig, self)
-
-        if not self.bolt_miss_threshold then
-            self.bolt_miss_threshold = -5
-        end
-
         return self.bolt_miss_threshold
     end)
  
@@ -128,7 +127,7 @@ function Lib:init()
 
         self.actions_done_timer = 1.2
 
-        local crit = action.points >= 150 --[[i lied]] and action.action ~= "AUTOATTACK"
+        local crit = action.points >= 150 and action.action ~= "AUTOATTACK"
         if crit then
             Assets.stopAndPlaySound("criticalswing")
 
@@ -467,65 +466,60 @@ function Lib:init()
 
     -----  INIT
 
-    Utils.hook(AttackBox, "init", function(orig, self, battler, offset, index, x, y)
+    if not Lib.MOREPARTY then
+        Utils.hook(AttackBox, "init", function(orig, self, battler, offset, index, x, y)
 
-        AttackBox.__super.init(self, x, y)
-    
-        self.battler = battler
-        self.weapon = battler.chara:getWeapon()
-        self.offset = offset + self.battler:getBoltOffset()
-        self.index = index
-    
-        self.head_sprite = Sprite(battler.chara:getHeadIcons().."/head", 21, 19)
-        self.head_sprite:setOrigin(0.5, 0.5)
-        self:addChild(self.head_sprite)
-    
-        self.press_sprite = Sprite("ui/battle/press", 42, 0)
-        self:addChild(self.press_sprite)
-    
-        self.bolt_target = (80 + 2) + self.weapon:getBoltTarget()
-        self.bolt_miss_threshold = self.weapon:getBoltMissThreshold()
+            AttackBox.__super.init(self, x, y)
+        
+            self.battler = battler
+            self.weapon = battler.chara:getWeapon()
+            self.offset = offset + self.battler:getBoltOffset()
+            self.index = index
+        
+            self.head_sprite = Sprite(battler.chara:getHeadIcons().."/head", 21, 19)
+            self.head_sprite:setOrigin(0.5, 0.5)
+            self:addChild(self.head_sprite)
+        
+            self.press_sprite = Sprite("ui/battle/press", 42, 0)
+            self:addChild(self.press_sprite)
+        
+            self.bolt_target = (80 + 2) + self.weapon:getBoltTarget()
+            self.bolt_miss_threshold = self.weapon:getBoltMissThreshold()
 
-        self.bolt_start_x = self.bolt_target + (self.offset * self.battler:getBoltSpeed())
-    
-        self.bolts = {}
-        self.score = 0
+            self.bolt_start_x = self.bolt_target + (self.offset * self.battler:getBoltSpeed())
+        
+            self.bolts = {}
+            self.score = 0
 
-        for i = 0, self.battler:getBoltCount() - 1 do
+            for i = 1, self.battler:getBoltCount() do
+                local bolt
 
-            local bolt
+                if i == 1 then
+                    bolt = AttackBar(self.bolt_start_x + 80, 0, 6, 38)
+                else
+                    bolt = AttackBar(self.bolts[i - 1].x + self.weapon:getMultiboltVariance(i), 0, 6, 38)
+                end
 
-            if i == 0 then
-                bolt = AttackBar(self.bolt_start_x + (i * 80), 0, 6, 38)
-            else
-
-                local min = self.weapon:getMultiboltVariance()[1]
-                local max = self.weapon:getMultiboltVariance()[2]
-                local bolt_variance = Utils.round(Utils.random(min, max))
-                bolt = AttackBar(self.bolts[1].x + (i * (80 + bolt_variance)), 0, 6, 38)
-
+                bolt.layer = 1
+                table.insert(self.bolts, bolt)
+                self:addChild(bolt)
             end
+        
+            self.fade_rect = Rectangle(0, 0, SCREEN_WIDTH, 300)
+            self.fade_rect:setColor(0, 0, 0, 0)
+            self.fade_rect.layer = 2
+            self:addChild(self.fade_rect)
+        
+            self.afterimage_timer = 0
+            self.afterimage_count = -1
+        
+            self.flash = 0
+        
+            self.attacked = false
+            self.removing = false
 
-            bolt.layer = 1
-            table.insert(self.bolts, bolt)
-            self:addChild(bolt)
-            
-        end
-    
-        self.fade_rect = Rectangle(0, 0, SCREEN_WIDTH, 300)
-        self.fade_rect:setColor(0, 0, 0, 0)
-        self.fade_rect.layer = 2
-        self:addChild(self.fade_rect)
-    
-        self.afterimage_timer = 0
-        self.afterimage_count = -1
-    
-        self.flash = 0
-    
-        self.attacked = false
-        self.removing = false
-
-    end)
+        end)
+    end
 
     -----  GETCLOSE
 
@@ -563,61 +557,50 @@ function Lib:init()
 
     -----  UPDATE
 
-    Utils.hook(AttackBox, "update", function(orig, self)
-        if self.removing or Game.battle.cancel_attack then
-            self.fade_rect.alpha = Utils.approach(self.fade_rect.alpha, 1, 0.08 * DTMULT)
-        end
-    
-        if not self.attacked then
+    if not Mod.libs["moreparty"] then
+        Utils.hook(AttackBox, "update", function(orig, self)
+            if self.removing or Game.battle.cancel_attack then
+                self.fade_rect.alpha = Utils.approach(self.fade_rect.alpha, 1, 0.08 * DTMULT)
+            end
+        
+            if not self.attacked then
 
-            self.afterimage_timer = self.afterimage_timer + DTMULT/2
+                self.afterimage_timer = self.afterimage_timer + DTMULT/2
 
-            for _,bolt in ipairs(self.bolts) do
+                for _,bolt in ipairs(self.bolts) do
 
-                local accel = self.weapon:getBoltAcceleration()
+                    local accel = self.weapon:getBoltAcceleration()
 
-                if accel > 0 then
-                    bolt.physics.gravity = accel
-                    bolt.physics.gravity_direction = math.pi
-                    bolt:move(-(self.battler:getBoltSpeed() - 8) * DTMULT, 0)
-                else
-                    bolt:move(-(self.battler:getBoltSpeed()) * DTMULT, 0)
+                    if accel > 0 then
+                        bolt.physics.gravity = accel
+                        bolt.physics.gravity_direction = math.pi
+                        bolt:move(-(self.battler:getBoltSpeed() - 8) * DTMULT, 0)
+                    else
+                        bolt:move(-(self.battler:getBoltSpeed()) * DTMULT, 0)
+                    end
+
                 end
-
-                if not bolt.afterimage_count then
-                    bolt.afterimage_count = 0
-                end
-
-                if self.battler:getBoltCount() == 1 and accel == 0 then
-                    while math.floor(self.afterimage_timer) > self.afterimage_count do
-                        self.afterimage_count = self.afterimage_count + 1
-
-                        local afterimg
-
-                        if Lib.MOREPARTY then
-                            afterimg = AttackBar(self.bolt_start_x - (self.afterimage_count * self.battler:getBoltSpeed() * 2), 0, 6, 28)
-                        else
-                            afterimg = AttackBar(self.bolt_start_x - (self.afterimage_count * self.battler:getBoltSpeed() * 2), 0, 6, 38)
-                        end
-
+                while math.floor(self.afterimage_timer) > self.afterimage_count do
+                    self.afterimage_count = self.afterimage_count + 1
+                    for _,bolt in ipairs(self.bolts) do
+                        local afterimg = AttackBar(bolt.x, 0, 6, 38)
                         afterimg.layer = 3
                         afterimg.alpha = 0.4
                         afterimg:fadeOutSpeedAndRemove()
                         self:addChild(afterimg)
                     end
                 end
-
             end
-        end
-    
-        if not Game.battle.cancel_attack and Input.pressed("confirm") then
-            self.flash = 1
-        else
-            self.flash = Utils.approach(self.flash, 0, DTMULT/5)
-        end
+        
+            if not Game.battle.cancel_attack and Input.pressed("confirm") then
+                self.flash = 1
+            else
+                self.flash = Utils.approach(self.flash, 0, DTMULT/5)
+            end
 
-        AttackBox.__super.update(self)
-    end)
+            AttackBox.__super.update(self)
+        end)
+    end
 
     -----  DRAW
 
