@@ -60,7 +60,9 @@ function Lib:init()
         if self.multibolt_variance[index] then
             return Utils.pick(self.multibolt_variance[index])
         else
-            return Utils.pick(self.multibolt_variance[#self.multibolt_variance])
+            local value = Utils.pick(self.multibolt_variance[#self.multibolt_variance])
+            value = index * Utils.pick(self.multibolt_variance[#self.multibolt_variance])
+            return value
         end
     end)
 
@@ -497,7 +499,7 @@ function Lib:init()
                 if i == 1 then
                     bolt = AttackBar(self.bolt_start_x + 80, 0, 6, 38)
                 else
-                    bolt = AttackBar(self.bolts[i - 1].x + self.weapon:getMultiboltVariance(i), 0, 6, 38)
+                    bolt = AttackBar(self.bolt_start_x + self.weapon:getMultiboltVariance(i), 0, 6, 38)
                 end
 
                 bolt.layer = 1
@@ -604,40 +606,37 @@ function Lib:init()
 
     -----  DRAW
 
-    Utils.hook(AttackBox, "draw", function(orig, self)
+    if not Lib.MOREPARTY then
+        Utils.hook(AttackBox, "draw", function(orig, self)
 
-        local target_color = {self.battler.chara:getAttackBarColor()}
-        local box_color = {self.battler.chara:getAttackBoxColor()}
-    
-        if self.flash > 0 then
-            box_color = Utils.lerp(box_color, {1, 1, 1}, self.flash)
-        end
-    
-        love.graphics.setLineWidth(2)
-        love.graphics.setLineStyle("rough")
+            local target_color = {self.battler.chara:getAttackBarColor()}
+            local box_color = {self.battler.chara:getAttackBoxColor()}
+        
+            if self.flash > 0 then
+                box_color = Utils.lerp(box_color, {1, 1, 1}, self.flash)
+            end
+        
+            love.graphics.setLineWidth(2)
+            love.graphics.setLineStyle("rough")
 
-        local ch1_offset = Game:getConfig("oldUIPositions")
+            local ch1_offset = Game:getConfig("oldUIPositions")
 
-        local box_height
-        if Lib.MOREPARTY and #Game.battle.party > 3 then
-            box_height = ch1_offset and 28 or 27
-        else
-            box_height = ch1_offset and 37 or 36
-        end
+            local box_height = ch1_offset and 37 or 36
 
-        love.graphics.setColor(box_color)
-        love.graphics.rectangle("line", 80, ch1_offset and 0 or 1, (15 * (self.battler:getBoltSpeed())) + 3, box_height)
+            love.graphics.setColor(box_color)
+            love.graphics.rectangle("line", 80, ch1_offset and 0 or 1, (15 * (self.battler:getBoltSpeed())) + 3, box_height)
 
-        love.graphics.setColor(target_color)
-        love.graphics.rectangle("line", self.bolt_target + 1, 1, 8, box_height)
-        Draw.setColor(0, 0, 0)
-        love.graphics.rectangle("fill", 84, 2, 6, box_height - 2)
-    
-        love.graphics.setLineWidth(1)
-    
-        AttackBox.__super.draw(self)
+            love.graphics.setColor(target_color)
+            love.graphics.rectangle("line", self.bolt_target + 1, 1, 8, box_height)
+            Draw.setColor(0, 0, 0)
+            love.graphics.rectangle("fill", 84, 2, 6, box_height - 2)
+        
+            love.graphics.setLineWidth(1)
+        
+            AttackBox.__super.draw(self)
 
-    end)
+        end)
+    end
 
     ----------------------------------------------------------------------------------
     -----  BATTLE HOOKS  
