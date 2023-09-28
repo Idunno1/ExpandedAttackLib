@@ -56,13 +56,11 @@ function Lib:init()
         return self.bolt_offset
     end)
 
-    Utils.hook(Item, "getMultiboltVariance", function(orig, self, index)
+    Utils.hook(Item, "getMultiboltVariance", function(orig, self, index, start)
         if self.multibolt_variance[index] then
             return Utils.pick(self.multibolt_variance[index])
         else
-            local value = Utils.pick(self.multibolt_variance[#self.multibolt_variance])
-            value = index * Utils.pick(self.multibolt_variance[#self.multibolt_variance])
-            return value
+            return Utils.pick(self.multibolt_variance[#self.multibolt_variance]) + (Utils.pick(self.multibolt_variance[#self.multibolt_variance]) * (index - #self.multibolt_variance))
         end
     end)
 
@@ -127,7 +125,7 @@ function Lib:init()
         local src = Assets.stopAndPlaySound(battler.chara:getAttackSound() or "laz_c")
         src:setPitch(battler.chara:getAttackPitch() or 1)
 
-        self.actions_done_timer = 1.2
+        Game.battle.actions_done_timer = 1.2
 
         local crit = action.points >= 150 and action.action ~= "AUTOATTACK"
         if crit then
@@ -499,7 +497,7 @@ function Lib:init()
                 if i == 1 then
                     bolt = AttackBar(self.bolt_start_x + 80, 0, 6, 38)
                 else
-                    bolt = AttackBar(self.bolt_start_x + self.weapon:getMultiboltVariance(i), 0, 6, 38)
+                    bolt = AttackBar(self.bolt_start_x + self.weapon:getMultiboltVariance(i, self.bolt_start_x), 0, 6, 38)
                 end
 
                 bolt.layer = 1
@@ -684,95 +682,11 @@ function Lib:init()
         end
 
         if action.action == "ATTACK" or action.action == "AUTOATTACK" then
-            local src = Assets.stopAndPlaySound(battler.chara:getAttackSound() or "laz_c")
-            src:setPitch(battler.chara:getAttackPitch() or 1)
-
-            self.actions_done_timer = 1.2
-
-            local crit = action.points == 150 and action.action ~= "AUTOATTACK"
-            if crit then
-                Assets.stopAndPlaySound("criticalswing")
-
-                for i = 1, 3 do
-                    local sx, sy = battler:getRelativePos(battler.width, 0)
-                    local sparkle = Sprite("effects/criticalswing/sparkle", sx + Utils.random(50), sy + 30 + Utils.random(30))
-                    sparkle:play(4/30, true)
-                    sparkle:setScale(2)
-                    sparkle.layer = BATTLE_LAYERS["above_battlers"]
-                    sparkle.physics.speed_x = Utils.random(2, 6)
-                    sparkle.physics.friction = -0.25
-                    sparkle:fadeOutSpeedAndRemove()
-                    self:addChild(sparkle)
-                end
-            end
-
-            battler:setAnimation("battle/attack", function()
-                action.icon = nil
-
-                if action.target and action.target.done_state then
-                    enemy = self:retargetEnemy()
-                    action.target = enemy
-                    if not enemy then
-                        self.cancel_attack = true
-                        self:finishAction(action)
-                        return
-                    end
-                end
-
-                local damage = Utils.round(enemy:getAttackDamage(action.damage or 0, battler, action.points or 0))
-                if damage < 0 then
-                    damage = 0
-                end
-
-                if damage > 0 then
-                    Game:giveTension(Utils.round(enemy:getAttackTension(action.points or 100)))
-
-                    local dmg_sprite = Sprite(battler.chara:getAttackSprite() or "effects/attack/cut")
-                    dmg_sprite:setOrigin(0.5, 0.5)
-                    if crit then
-                        dmg_sprite:setScale(2.5, 2.5)
-                    else
-                        dmg_sprite:setScale(2, 2)
-                    end
-                    dmg_sprite:setPosition(enemy:getRelativePos(enemy.width/2, enemy.height/2))
-                    dmg_sprite.layer = enemy.layer + 0.01
-                    dmg_sprite:play(1/15, false, function(s) s:remove() end)
-                    enemy.parent:addChild(dmg_sprite)
-
-                    local sound = enemy:getDamageSound() or "damage"
-                    if sound and type(sound) == "string" then
-                        Assets.stopAndPlaySound(sound)
-                    end
-                    enemy:hurt(damage, battler)
-
-                    battler.chara:onAttackHit(enemy, damage)
-                else
-                    enemy:hurt(0, battler)
-                end
-
-                self:finishAction(action)
-
-                Utils.removeFromTable(self.normal_attackers, battler)
-                Utils.removeFromTable(self.auto_attackers, battler)
-
-                if not self:retargetEnemy() then
-                    self.cancel_attack = true
-                elseif #self.normal_attackers == 0 and #self.auto_attackers > 0 then
-                    local next_attacker = self.auto_attackers[1]
-
-                    local next_action = self:getActionBy(next_attacker, true)
-                    if next_action then
-                        self:beginAction(next_action)
-                        self:processAction(next_action)
-                    end
-                end
-            end)
             if action.action == "ATTACK" and attackbox.attacked then
                 battler_weapon:onAttack(action, battler, enemy, attackbox.score, attackbox.bolts, attackbox.close)
             elseif action.action == "AUTOATTACK" then
                 battler_weapon:onAttack(action, battler, enemy, 150, 1, 0)
             end
-
             return false
         elseif action.action == "SKIP" then
             return true -- multi act fix
