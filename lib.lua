@@ -493,26 +493,47 @@ function Lib:init()
                 if i == 1 then
                     bolt = AttackBar(self.bolt_start_x, 0, 6, 38)
                 else
-                    -- following code written by firerainv and adjusted by me, thank you
                     local next_bolt_x
-                    if type(self.weapon:getMultiboltVariance()) == "table" then
-                        local index = self.weapon:getMultiboltVariance()[i - 1] and (i - 1) or #self.weapon:getMultiboltVariance()
-                        if type(self.weapon:getMultiboltVariance()[index]) == "number" then
-                            next_bolt_x = self.weapon:getMultiboltVariance()[index]
-                        elseif type(self.weapon:getMultiboltVariance()[index]) == "table" then
-                            next_bolt_x = Utils.pick(self.weapon:getMultiboltVariance()[index])
-                        else
-                            error("self.multibolt_variance must either be an integer, a table populated with integers, or a table of tables populated with integers.")
-                        end
-                    elseif type(self.weapon:getMultiboltVariance()) == "number" then
-                        next_bolt_x = self.weapon:getMultiboltVariance()
-                    else
-                        error("self.multibolt_variance must be either a table or a number value.")
-                    end
-
+                    local variance = self.weapon:getMultiboltVariance()
                     if Kristal.getLibConfig("ExpandedAttackLib", "calculate_multibolt_from") == "last_bolt" then
+                        -- following code written by firerainv (thank you) and adjusted by me
+                        if type(variance) == "table" then
+                            local index = variance[i - 1] and (i - 1) or #variance
+                            if type(variance[index]) == "number" then
+                                next_bolt_x = variance[index]
+                            elseif type(variance[index]) == "table" then
+                                next_bolt_x = Utils.pick(variance[index])
+                            else
+                                error("self.multibolt_variance must either be an integer, a table populated with integers, or a table of tables populated with integers.")
+                            end
+                        elseif type(variance) == "number" then
+                            next_bolt_x = variance
+                        else
+                            error("self.multibolt_variance must be either a table or a number value.")
+                        end
+                        
                         bolt = AttackBar(self.bolts[i - 1].x + next_bolt_x, 0, 6, 38)
                     elseif Kristal.getLibConfig("ExpandedAttackLib", "calculate_multibolt_from") == "first_bolt" then
+                        local index = i - 1
+
+                        if variance[index] then
+                            if type(variance) == "table" then
+                                if type(variance[index]) == "number" then
+                                    next_bolt_x = variance[index]
+                                elseif type(variance[index]) == "table" then
+                                    next_bolt_x = Utils.pick(variance[index])
+                                else
+                                    error("self.multibolt_variance must either be an integer, a table populated with integers, or a table of tables populated with integers.")
+                                end
+                            elseif type(variance) == "number" then
+                                next_bolt_x = variance
+                            else
+                                error("self.multibolt_variance must be either a table or a number value.")
+                            end
+                        else
+                            next_bolt_x = Utils.pick(variance[#variance]) + (Utils.pick(variance[#variance]) * (index - #variance))
+                        end
+
                         bolt = AttackBar(self.bolts[1].x + next_bolt_x, 0, 6, 38)
                     end
                 end
