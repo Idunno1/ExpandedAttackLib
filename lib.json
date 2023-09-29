@@ -4,6 +4,12 @@
     "engineVersion": "0.9.0-dev",
     "authors": [
         "Sam Deluxe - creator",
-        "FireRainV - bolt afterimages and moreparty stuff"
-    ]
+        "FireRainV - bolt afterimages, multibolt fix help, and moreparty stuff"
+    ],
+    "config": {
+        // Determines how multibolts are spawned.
+        // "last_bolt":  The next bolt is spawned relative to the last bolt spawned (lower values recommended)
+        // "first_bolt": The next bolt is spawned relative to the first bolt spawned (higher values recommended, bolts may overlap)
+        "calculate_multibolt_from": "last_bolt" // "last_bolt" or "first_bolt"
+    }
 }

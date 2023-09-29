@@ -56,12 +56,8 @@ function Lib:init()
         return self.bolt_offset
     end)
 
-    Utils.hook(Item, "getMultiboltVariance", function(orig, self, index, start)
-        if self.multibolt_variance[index] then
-            return Utils.pick(self.multibolt_variance[index])
-        else
-            return Utils.pick(self.multibolt_variance[#self.multibolt_variance]) + (Utils.pick(self.multibolt_variance[#self.multibolt_variance]) * (index - #self.multibolt_variance))
-        end
+    Utils.hook(Item, "getMultiboltVariance", function(orig, self, index)
+        return self.multibolt_variance
     end)
 
     Utils.hook(Item, "getBoltAcceleration", function(orig, self)
@@ -495,9 +491,30 @@ function Lib:init()
                 local bolt
 
                 if i == 1 then
-                    bolt = AttackBar(self.bolt_start_x + 80, 0, 6, 38)
+                    bolt = AttackBar(self.bolt_start_x, 0, 6, 38)
                 else
-                    bolt = AttackBar(self.bolt_start_x + self.weapon:getMultiboltVariance(i, self.bolt_start_x), 0, 6, 38)
+                    -- following code written by firerainv and adjusted by me, thank you
+                    local next_bolt_x
+                    if type(self.weapon:getMultiboltVariance()) == "table" then
+                        local index = self.weapon:getMultiboltVariance()[i - 1] and (i - 1) or #self.weapon:getMultiboltVariance()
+                        if type(self.weapon:getMultiboltVariance()[index]) == "number" then
+                            next_bolt_x = self.weapon:getMultiboltVariance()[index]
+                        elseif type(self.weapon:getMultiboltVariance()[index]) == "table" then
+                            next_bolt_x = Utils.pick(self.weapon:getMultiboltVariance()[index])
+                        else
+                            error("self.multibolt_variance must either be an integer, a table populated with integers, or a table of tables populated with integers.")
+                        end
+                    elseif type(self.weapon:getMultiboltVariance()) == "number" then
+                        next_bolt_x = self.weapon:getMultiboltVariance()
+                    else
+                        error("self.multibolt_variance must be either a table or a number value.")
+                    end
+
+                    if Kristal.getLibConfig("ExpandedAttackLib", "calculate_multibolt_from") == "last_bolt" then
+                        bolt = AttackBar(self.bolts[i - 1].x + next_bolt_x, 0, 6, 38)
+                    elseif Kristal.getLibConfig("ExpandedAttackLib", "calculate_multibolt_from") == "first_bolt" then
+                        bolt = AttackBar(self.bolts[1].x + next_bolt_x, 0, 6, 38)
+                    end
                 end
 
                 bolt.layer = 1
