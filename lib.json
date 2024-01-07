@@ -5,12 +5,5 @@
     "authors": [
         "Sam Deluxe - creator",
         "FireRainV - bolt afterimages, multibolt fix help, and moreparty stuff"
-    ],
-    "config": {
-        // Determines how multibolts are spawned.
-        // "last_bolt":  The next bolt is spawned relative to the last bolt spawned (lower values recommended)
-        // "first_bolt": The next bolt is spawned relative to the first bolt spawned (higher values recommended, bolts may overlap)
-        //  first_bolt is here for magical glass parity, though last_bolt is recommended
-        "calculate_multibolt_from": "last_bolt"
-    }
+    ]
 }

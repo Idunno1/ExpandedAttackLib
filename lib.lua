@@ -12,10 +12,9 @@ function Lib:init()
     -----  BITCH
     ----------------------------------------------------------------------------------
 
-    print(self.info.id .. " version " .. self.info.version .. ": Getting ready...")
+    print(self.info.id .. " version " .. self.info.version .. ": Ready!")
 
     if Mod.libs["moreparty"] then
-        print(self.info.id .. ": MoreParty detected!")
         Lib.MOREPARTY = true
     end
 
@@ -34,6 +33,12 @@ function Lib:init()
         self.bolt_offset = 0
         self.bolt_accel = 0
         self.multibolt_variance = {{80}}
+        
+        -- Determines how multibolts are spawned.
+        -- true = "last_bolt":  The next bolt is spawned relative to the last bolt spawned (lower values recommended)
+        -- false = "first_bolt": The next bolt is spawned relative to the first bolt spawned (higher values recommended, bolts may overlap)
+        -- first_bolt is here for magical glass parity, though last_bolt is recommended
+        self.calculate_multibolt_from_last_bolt = true
 
         self.bolt_target = 0
         self.bolt_miss_threshold = -5
@@ -495,7 +500,7 @@ function Lib:init()
                 else
                     local next_bolt_x
                     local variance = self.weapon:getMultiboltVariance()
-                    if Kristal.getLibConfig("ExpandedAttackLib", "calculate_multibolt_from") == "last_bolt" then
+                    if self.weapon.calculate_multibolt_from_last_bolt then
                         -- following code written by firerainv (thank you) and adjusted by me
                         if type(variance) == "table" then
                             local index = variance[i - 1] and (i - 1) or #variance
@@ -513,7 +518,7 @@ function Lib:init()
                         end
                         
                         bolt = AttackBar(self.bolts[i - 1].x + next_bolt_x, 0, 6, 38)
-                    elseif Kristal.getLibConfig("ExpandedAttackLib", "calculate_multibolt_from") == "first_bolt" then
+                    else
                         local index = i - 1
 
                         if variance[index] then
@@ -842,8 +847,6 @@ function Lib:init()
     ----------------------------------------------------------------------------------
     -----  I DID IT
     ----------------------------------------------------------------------------------
-
-    print(self.info.id .. ": Ready!")
 
 end
 
